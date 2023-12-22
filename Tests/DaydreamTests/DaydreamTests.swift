@@ -1,5 +1,5 @@
 import XCTest
-@testable import Daydream
+@testable import DaydreamCompiler
 
 final class DaydreamTests: XCTestCase {
     func testExample() throws {

@@ -1,0 +1,40 @@
+Varint: Singleton
+Record: Singleton
+Enum: Singleton
+List: Singleton
+Nothing: Singleton
+
+Natural: Record Varint
+Length: Record Natural
+Identifier: Record Natural
+
+True: Singleton
+False: Singleton
+Boolean: Enum True False
+
+GeneralFailure: Singleton
+Failure: Enum GeneralFailure
+MaybeFailure: Enum Failure Nothing
+
+RequestID: Record Identifier
+ListNatural: List Natural
+Datum: Record Length ListNatural
+
+load_request: Record RequestID Datum
+run_request: Record RequestID
+isRunning_request: Record RequestID
+pause_request: Record RequestID
+resume_request: Record RequestID
+stop_request: Record RequestID
+
+load_response: Record RequestID MaybeFailure
+run_response: Record RequestID MaybeFailure
+isRunning_response: Record RequestID Boolean
+pause_response: Record RequestID MaybeFailure
+resume_response: Record RequestID MaybeFailure
+stop_response: Record RequestID MaybeFailure
+
+Request: Enum load_request run_request isRunning_request pause_request resume_request stop_request
+Response: Enum load_response run_response isRunning_response pause_response resume_response stop_response
+
+Message: Enum Request Response
