@@ -11,7 +11,7 @@ import Text
 
 public class Namespace
 {
-    var bindings: [Text: TypeDefinition] = [:]
+    public var bindings: [Text: TypeDefinition] = [:]
 
     public init(types: [TypeDefinition]) throws
     {
@@ -68,7 +68,7 @@ public class Namespace
         try self.validate()
     }
 
-    func validate() throws
+    public func validate() throws
     {
         var validated = Set<Text>()
 

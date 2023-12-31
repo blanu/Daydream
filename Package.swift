@@ -8,9 +8,14 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
+        .library(
+            name: "Daydream",
+            targets: ["Daydream"]
+        ),
         .executable(
             name: "DaydreamCompiler",
-            targets: ["DaydreamCompiler"]),
+            targets: ["DaydreamCompiler"]
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
@@ -21,9 +26,18 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
+        .target(
+            name: "Daydream",
+            dependencies: [
+                "Datable",
+                "Text",
+            ]
+        ),
         .executableTarget(
             name: "DaydreamCompiler",
             dependencies: [
+                "Daydream",
+
                 "Datable",
                 "Gardener",
                 "Text",

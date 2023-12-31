@@ -7,7 +7,10 @@
 
 import Foundation
 
-public enum Target: String
+import ArgumentParser
+
+public enum Target: String, Codable, ExpressibleByArgument, CaseIterable
 {
     case swift
+    case go
 }

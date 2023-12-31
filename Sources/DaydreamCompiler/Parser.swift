@@ -9,6 +9,8 @@ import Foundation
 
 import Text
 
+import Daydream
+
 public class Parser
 {
     public func parse(_ text: Text) -> [TypeDefinition]

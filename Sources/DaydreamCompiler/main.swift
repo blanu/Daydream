@@ -8,6 +8,8 @@
 import ArgumentParser
 import Foundation
 
+import Daydream
+
 struct DaydreamCompilerCommandLine: ParsableCommand
 {
     @Argument(help: "Daydream type definition file to parse")
@@ -16,18 +18,13 @@ struct DaydreamCompilerCommandLine: ParsableCommand
     @Argument(help: "Directory to write generated source code")
     var outputDirectory: String
 
-    @Option(help: "Word size for VM in bytes")
-    var wordSize: UInt8 = 8
+    @Option(help: "platform for which code should be generated")
+    var target: Target
 
     mutating func run() throws
     {
-        guard let word = WordSize(rawValue: wordSize) else
-        {
-            throw DaydreamCompilerCommandLineError.badWordSize(wordSize)
-        }
-
         let compiler = DaydreamCompiler(input: input, outputDirectory: outputDirectory)
-        try compiler.compile(wordSize: word)
+        try compiler.compile(target)
     }
 }
 
