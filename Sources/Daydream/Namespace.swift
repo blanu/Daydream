@@ -13,6 +13,10 @@ public class Namespace
 {
     public var bindings: [Text: TypeDefinition] = [:]
 
+    public init()
+    {
+    }
+
     public init(types: [TypeDefinition]) throws
     {
         for type in types
@@ -66,6 +70,11 @@ public class Namespace
         }
 
         try self.validate()
+    }
+
+    public func bind(name: Text, definition: TypeDefinition)
+    {
+        self.bindings[name] = definition
     }
 
     public func validate() throws
