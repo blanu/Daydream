@@ -36,7 +36,7 @@ extension TypeDefinition: CustomStringConvertible
 
             case .Record(name: let name, fields: let fields):
                 let fieldsString = Text.join(fields, " ")
-                return "\(name): Record\(fieldsString)"
+                return "\(name): Record \(fieldsString)"
 
             case .Enum(name: let name, cases: let cases):
                 let casesString = Text.join(cases, " ")
