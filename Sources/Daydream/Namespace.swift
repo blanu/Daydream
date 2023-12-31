@@ -130,6 +130,23 @@ public class Namespace
         let keys = [Text](self.bindings.keys)
         return keys.sorted()
     }
+
+    public func save(_ url: URL) throws
+    {
+        var result: String = ""
+
+        let keys = self.sorted()
+        for key in keys
+        {
+            if let definition = self.bindings[key]
+            {
+                result.append("\(key): \(definition.description)")
+            }
+        }
+
+        let data = result.data
+        try data.write(to: url)
+    }
 }
 
 public enum NamespaceError: Error
