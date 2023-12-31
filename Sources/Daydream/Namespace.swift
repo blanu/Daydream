@@ -140,7 +140,7 @@ public class Namespace
         {
             if let definition = self.bindings[key]
             {
-                result.append("\(key): \(definition.description)\n")
+                result.append("\(definition.description)\n")
             }
         }
 
