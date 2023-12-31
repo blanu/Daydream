@@ -32,18 +32,18 @@ extension TypeDefinition: CustomStringConvertible
         switch self
         {
             case .SingletonType(name: let name):
-                return "Singleton \(name)"
+                return "\(name): Singleton"
 
             case .Record(name: let name, fields: let fields):
                 let fieldsString = Text.join(fields, " ")
-                return "Record \(name) \(fieldsString)"
-                
+                return "\(name): Record\(fieldsString)"
+
             case .Enum(name: let name, cases: let cases):
                 let casesString = Text.join(cases, " ")
-                return "Enum \(name) \(casesString)"
+                return "\(name): Enum \(casesString)"
 
             case .List(name: let name, type: let type):
-                return "List \(name) \(type)"
+                return "\(name): List \(type)"
         }
     }
 }
