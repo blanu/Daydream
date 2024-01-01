@@ -69,8 +69,9 @@ public class DaydreamCompiler
                 try compiler.compile(builtins, identifiers, namespace, outputURL)
 
             case .go:
-                let compiler = GoCompiler()
-                try compiler.compile(builtins, identifiers, namespace, outputURL)
+                return
+//                let compiler = GoCompiler()
+//                try compiler.compile(builtins, identifiers, namespace, outputURL)
         }
 
     }

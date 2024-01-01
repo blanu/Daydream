@@ -224,6 +224,9 @@ public class SwiftCompiler
 
                 case .List(name: let name, type: let type):
                     return "    case \(name)([\(type)Value])"
+
+                case .Builtin(name: let name):
+                    return "    case \(name)"
             }
         }.joined(separator: "\n")
     }
@@ -247,6 +250,9 @@ public class SwiftCompiler
             switch definition
             {
                 case .SingletonType(name: _):
+                    return nil
+
+                case .Builtin(name: _):
                     return nil
 
                 case .Record(name: let name, fields: let fields):
@@ -359,6 +365,12 @@ public class SwiftCompiler
                                                 return TypeIdentifiers.\(name)Type.varint
                                 """
 
+                            case .Builtin(name: _):
+                                return """
+                                            case .\(name):
+                                                return TypeIdentifiers.\(name)Type.varint
+                                """
+
                             case .Record(name: _, fields: _):
                                 return """
                                             case .\(name)(let subtype):
@@ -418,6 +430,12 @@ public class SwiftCompiler
                                                 self = .\(name)
                                 """
 
+                            case .Builtin(name: _):
+                                return """
+                                            case .\(name)Type:
+                                                self = .\(name)
+                                """
+
                             case .Record(name: _, fields: _):
                                 return """
                                             case .\(name)Type:
@@ -468,6 +486,9 @@ public class SwiftCompiler
                         switch subtype
                         {
                             case .SingletonType(name: _):
+                                return "    case \(type)"
+
+                            case .Builtin(name: _):
                                 return "    case \(type)"
 
                             case .Record(name: _, fields: _):
@@ -695,6 +716,14 @@ public class SwiftCompiler
                                         return typeData
                         """
 
+                    case .Builtin(name: _):
+                        return """
+                                    case .\(identifier.name):
+                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
+                                        return typeData
+                        """
+
+
                     case .Record(name: _, fields: _):
                         return """
                                     case .\(identifier.name)(let subtype):
@@ -771,6 +800,12 @@ public class SwiftCompiler
                 switch definition
                 {
                     case .SingletonType(name: _):
+                        return """
+                                    case .\(identifier.name)Type:
+                                        self = .\(identifier.name)
+                        """
+
+                    case .Builtin(name: _):
                         return """
                                     case .\(identifier.name)Type:
                                         self = .\(identifier.name)

@@ -72,6 +72,14 @@ public class Parser
                 }
 
                 return TypeDefinition.List(name: name, type: type)
+
+            case .Builtin:
+                guard rest.count == 0 else
+                {
+                    throw ParserError.badArgumentCount
+                }
+
+                return TypeDefinition.SingletonType(name: name)
         }
     }
 

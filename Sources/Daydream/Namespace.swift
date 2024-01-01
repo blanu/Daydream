@@ -66,6 +66,17 @@ public class Namespace
                     }
 
                     self.bindings[name] = type
+
+                case .Builtin(name: let name):
+                    if let oldDefinition = self.bindings[name]
+                    {
+                        print("Duplicate binding: \(name)")
+                        print("New definition: \(type)")
+                        print("Old definition: \(oldDefinition)")
+                        throw NamespaceError.duplicateBindings(name, type, oldDefinition)
+                    }
+
+                    self.bindings[name] = type
             }
         }
 
@@ -122,6 +133,10 @@ public class Namespace
             case .List(name: _, type: let type):
                 validated.insert(name)
                 try self.validate(type, &validated)
+
+            case .Builtin(name: _):
+                validated.insert(name)
+                return
         }
     }
 

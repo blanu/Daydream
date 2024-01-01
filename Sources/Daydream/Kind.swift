@@ -15,6 +15,7 @@ public enum Kind: Text
     case Record        = "Record"
     case Enum          = "Enum"
     case List          = "List"
+    case Builtin       = "Builtin"
 }
 
 public indirect enum TypeDefinition
@@ -23,6 +24,7 @@ public indirect enum TypeDefinition
     case Record(name: Text, fields: [Text])
     case Enum(name: Text, cases: [Text])
     case List(name: Text, type: Text)
+    case Builtin(name: Text)
 }
 
 extension TypeDefinition: CustomStringConvertible
@@ -44,6 +46,9 @@ extension TypeDefinition: CustomStringConvertible
 
             case .List(name: let name, type: let type):
                 return "\(name): List \(type)"
+
+            case .Builtin(name: let name):
+                return "\(name): Builtin"
         }
     }
 }
