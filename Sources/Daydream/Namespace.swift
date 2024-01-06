@@ -93,6 +93,14 @@ public class Namespace
         self.bind(name: name, definition: .SingletonType(name: name))
     }
 
+    public func singletons(_ names: [Text])
+    {
+        for name in names
+        {
+            self.singleton(name)
+        }
+    }
+
     public func builtin(_ name: Text, _ representation: Text)
     {
         self.bind(name: name, definition: .Builtin(name: name, representation: representation))
