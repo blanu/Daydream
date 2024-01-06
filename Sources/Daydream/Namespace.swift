@@ -93,7 +93,7 @@ public class Namespace
         self.bind(name: name, definition: .SingletonType(name: name))
     }
 
-    public func singletons(_ names: [Text])
+    public func singletons(_ names: Text...)
     {
         for name in names
         {
