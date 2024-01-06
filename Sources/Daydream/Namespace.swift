@@ -67,7 +67,7 @@ public class Namespace
 
                     self.bindings[name] = type
 
-                case .Builtin(name: let name):
+                case .Builtin(name: let name, representation: _):
                     if let oldDefinition = self.bindings[name]
                     {
                         print("Duplicate binding: \(name)")
@@ -86,6 +86,31 @@ public class Namespace
     public func bind(name: Text, definition: TypeDefinition)
     {
         self.bindings[name] = definition
+    }
+
+    public func singleton(_ name: Text)
+    {
+        self.bind(name: name, definition: .SingletonType(name: name))
+    }
+
+    public func builtin(_ name: Text, _ representation: Text)
+    {
+        self.bind(name: name, definition: .Builtin(name: name, representation: representation))
+    }
+
+    public func record(_ name: Text, _ fields: [Text])
+    {
+        self.bind(name: name, definition: .Record(name: name, fields: fields))
+    }
+
+    public func `enum`(_ name: Text, _ cases: [Text])
+    {
+        self.bind(name: name, definition: .Enum(name: name, cases: cases))
+    }
+
+    public func list(_ name: Text, _ type: Text)
+    {
+        self.bind(name: name, definition: .List(name: name, type: type))
     }
 
     public func validate() throws

@@ -74,12 +74,17 @@ public class Parser
                 return TypeDefinition.List(name: name, type: type)
 
             case .Builtin:
-                guard rest.count == 0 else
+                guard rest.count == 1 else
                 {
                     throw ParserError.badArgumentCount
                 }
 
-                return TypeDefinition.SingletonType(name: name)
+                guard let type = rest.first else
+                {
+                    throw ParserError.badArgumentCount
+                }
+
+                return TypeDefinition.Builtin(name: name, representation: type)
         }
     }
 

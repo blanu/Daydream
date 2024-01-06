@@ -16,6 +16,24 @@ public class SwiftCompiler
 {
     func compile(_ builtins: [Identifier], _ identifiers: [Identifier], _ namespace: Namespace, _ outputDirectory: URL) throws
     {
+        print("Builtins:")
+        for builtin in builtins
+        {
+            print(builtin)
+        }
+
+        print("====================")
+
+        print("Identifiers:")
+        for identifier in identifiers
+        {
+            print(identifier)
+        }
+
+        print("====================")
+
+        print("Saving to \(outputDirectory)")
+
         try self.writeTypeIdentifiers(builtins, identifiers, namespace, outputDirectory)
     }
 
@@ -36,6 +54,7 @@ public class SwiftCompiler
         import BigNumber
         import Datable
         import SwiftHexTools
+        import Text
 
         extension Data
         {
@@ -223,10 +242,29 @@ public class SwiftCompiler
                     return "    case \(name)(\(name)Value)"
 
                 case .List(name: let name, type: let type):
-                    return "    case \(name)([\(type)Value])"
+                    guard let listDefinition = namespace.bindings[type] else
+                    {
+                        throw DaydreamCompilerError.doesNotExist(type.string)
+                    }
 
-                case .Builtin(name: let name):
-                    return "    case \(name)"
+                    switch listDefinition
+                    {
+                        case .Builtin(name: _):
+                            return "    case \(name)([\(type)])"
+
+                        default:
+                            if type == "Varint"
+                            {
+                                return "    case \(name)([BInt])"
+                            }
+                            else
+                            {
+                                return "    case \(name)([\(type)Value])"
+                            }
+                    }
+
+                case .Builtin(name: let name, representation: _):
+                    return "    case \(name)Builtin(\(name))"
             }
         }.joined(separator: "\n")
     }
@@ -365,7 +403,7 @@ public class SwiftCompiler
                                                 return TypeIdentifiers.\(name)Type.varint
                                 """
 
-                            case .Builtin(name: _):
+                            case .Builtin(name: _, representation: _):
                                 return """
                                             case .\(name):
                                                 return TypeIdentifiers.\(name)Type.varint
@@ -430,7 +468,7 @@ public class SwiftCompiler
                                                 self = .\(name)
                                 """
 
-                            case .Builtin(name: _):
+                            case .Builtin(name: _, representation: _):
                                 return """
                                             case .\(name)Type:
                                                 self = .\(name)
@@ -488,7 +526,7 @@ public class SwiftCompiler
                             case .SingletonType(name: _):
                                 return "    case \(type)"
 
-                            case .Builtin(name: _):
+                            case .Builtin(name: _, representation: _):
                                 return "    case \(type)"
 
                             case .Record(name: _, fields: _):
@@ -497,16 +535,45 @@ public class SwiftCompiler
                             case .Enum(name: _, cases: _):
                                 return "    case \(type)(\(type)Value)"
 
-                            case .List(name: _, type: _):
-                                return "    case \(type)([\(type)Value])"
+                            case .List(name: _, type: let subtype):
+                                if subtype == "Varint"
+                                {
+                                    return "    case \(type)([BInt])"
+                                }
+                                else
+                                {
+                                    return "    case \(type)([\(type)Value])"
+                                }
                         }
                     }.joined(separator: "\n"))
                     }
                     """
 
                 case .List(name: let name, type: let type):
+                    let typeName: String
+                    if type == "Varint"
+                    {
+                        typeName = "BInt"
+                    }
+                    else
+                    {
+                        guard let subtype = namespace.bindings[type] else
+                        {
+                            throw DaydreamCompilerError.doesNotExist(type.string)
+                        }
+
+                        switch subtype
+                        {
+                            case .Builtin(name: _, representation: _):
+                                typeName = type.string
+
+                            default:
+                                typeName = "\(type)Value"
+                        }
+                    }
+
                     return """
-                    extension [\(type)Value]
+                    extension [\(typeName)]
                     {
                         public var data: Data
                         {
@@ -524,7 +591,7 @@ public class SwiftCompiler
 
                         public init?(data: Data)
                         {
-                            var results: [\(type)Value] = []
+                            var results: [\(typeName)] = []
                             var working = data
 
                             while working.count > 0
@@ -535,7 +602,7 @@ public class SwiftCompiler
                                     return
                                 }
 
-                                guard let value = \(type)Value(data: valueData) else
+                                guard let value = \(typeName)(data: valueData) else
                                 {
                                     return nil
                                 }
@@ -716,11 +783,12 @@ public class SwiftCompiler
                                         return typeData
                         """
 
-                    case .Builtin(name: _):
+                    case .Builtin(name: _, representation: _):
                         return """
-                                    case .\(identifier.name):
+                                    case .\(identifier.name)(let subtype):
                                         let typeData = TypeIdentifiers.\(identifier.name)Type.varint
-                                        return typeData
+                                        let valueData = subtype.data
+                                        return typeData + valueData
                         """
 
 
@@ -805,10 +873,14 @@ public class SwiftCompiler
                                         self = .\(identifier.name)
                         """
 
-                    case .Builtin(name: _):
+                    case .Builtin(name: _, representation: _):
                         return """
                                     case .\(identifier.name)Type:
-                                        self = .\(identifier.name)
+                                        guard let subtype = \(identifier.name)Value(data: working) else
+                                        {
+                                            return nil
+                                        }
+                                        self = .\(identifier.name)(subtype)
                         """
 
                     case .Record(name: _, fields: _):

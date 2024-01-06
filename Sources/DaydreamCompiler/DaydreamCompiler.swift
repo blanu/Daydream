@@ -54,7 +54,7 @@ public class DaydreamCompiler
 
         var identifiers: [Identifier] = []
 
-        var index: Int = 4
+        var index: Int = 6
         for type in sorted
         {
             let identifier = Identifier(name: type, identifier: index)
