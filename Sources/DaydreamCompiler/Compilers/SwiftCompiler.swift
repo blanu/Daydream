@@ -56,6 +56,42 @@ public class SwiftCompiler
         import SwiftHexTools
         import Text
 
+        extension Bool: MaybeDatable
+        {
+            public var data: Data
+            {
+                if self
+                {
+                    return UInt8(0).data
+                }
+                else
+                {
+                    return UInt8(1).data
+                }
+            }
+
+            public init?(data: Data)
+            {
+                guard data.count == 1 else
+                {
+                    return nil
+                }
+
+                if data.count == 0
+                {
+                    self = false
+                }
+                else if data.count == 1
+                {
+                    self = true
+                }
+                else
+                {
+                    return nil
+                }
+            }
+        }
+
         extension Data
         {
             public func popVarint() -> (BInt, Data)?
@@ -326,7 +362,25 @@ public class SwiftCompiler
                             switch fieldDefinition
                             {
                                 case .List(name: _, type: let listType):
-                                    return "    public let field\(index+1): [\(listType)Value]"
+                                    guard let subtype = namespace.bindings[listType] else
+                                    {
+                                        throw DaydreamCompilerError.doesNotExist(listType.string)
+                                    }
+
+                                    let typeName: String
+                                    switch subtype
+                                    {
+                                        case .Builtin(name: _, representation: _):
+                                            typeName = "[\(listType)]"
+
+                                        default:
+                                            typeName = "[\(listType)Value]"
+                                    }
+
+                                    return "    public let field\(index+1): \(typeName)"
+
+                                case .Builtin(name: _, representation: _):
+                                    return "    public let field\(index+1): \(type)"
 
                                 default:
                                     return "    public let field\(index+1): \(type)Value"
@@ -341,6 +395,8 @@ public class SwiftCompiler
                             var working: Data = data
 
                     \(try self.dataToStruct(name, fields, namespace))
+
+                            working = Data()
                         }
 
                         public init(\(try fields.enumerated().map
@@ -365,7 +421,25 @@ public class SwiftCompiler
                                 switch fieldDefinition
                                 {
                                     case .List(name: _, type: let listType):
-                                        return "_ field\(index+1): [\(listType)Value]"
+                                        guard let subtype = namespace.bindings[listType] else
+                                        {
+                                            throw DaydreamCompilerError.doesNotExist(listType.string)
+                                        }
+
+                                        let typeName: String
+                                        switch subtype
+                                        {
+                                            case .Builtin(name: _, representation: _):
+                                                typeName = "[\(listType)]"
+
+                                            default:
+                                                typeName = "[\(listType)Value]"
+                                        }
+
+                                        return "_ field\(index+1): \(typeName)"
+
+                                    case .Builtin(name: _, representation: _):
+                                        return "_ field\(index+1): \(type)"
 
                                     default:
                                         return "_ field\(index+1): \(type)Value"
@@ -465,12 +539,22 @@ public class SwiftCompiler
                             case .SingletonType(name: _):
                                 return """
                                             case .\(name)Type:
+                                                guard rest.isEmpty else
+                                                {
+                                                    return nil
+                                                }
+
                                                 self = .\(name)
                                 """
 
                             case .Builtin(name: _, representation: _):
                                 return """
                                             case .\(name)Type:
+                                                guard rest.isEmpty else
+                                                {
+                                                    return nil
+                                                }
+
                                                 self = .\(name)
                                 """
 
@@ -629,6 +713,10 @@ public class SwiftCompiler
             {
                 return "self.field1.varint"
             }
+            else if type == "Data"
+            {
+                return "self.field1"
+            }
             else
             {
                 return "self.field1.data"
@@ -659,6 +747,43 @@ public class SwiftCompiler
         {
             let type = fields[0]
 
+            guard let subtype = namespace.bindings[type] else
+            {
+                throw DaydreamCompilerError.doesNotExist(name.string)
+            }
+
+            let typeName: Text
+            switch subtype
+            {
+                case .Builtin(name: _, representation: _):
+                    typeName = type
+
+                case .List(name: _, type: let type):
+                    guard let listDefinition = namespace.bindings[type] else
+                    {
+                        throw DaydreamCompilerError.doesNotExist(type.string)
+                    }
+
+                    switch listDefinition
+                    {
+                        case .Builtin(name: _):
+                            typeName = "[\(type)]".text
+
+                        default:
+                            if type == "Varint"
+                            {
+                                typeName = "[BInt]".text
+                            }
+                            else
+                            {
+                                typeName = "[\(type)Value]".text
+                            }
+                    }
+
+                default:
+                    typeName = "\(type)Value".text
+            }
+
             if type == "Varint"
             {
                 return """
@@ -668,20 +793,33 @@ public class SwiftCompiler
                         }
 
                         self.field1 = fieldValue
-                        working = Data()
                 """
             }
             else
             {
-                return """
-                        guard let fieldValue = \(type)Value(data: working) else
-                        {
-                            return nil
-                        }
+                if typeName == "Data"
+                {
+                    return """
+                            self.field1 = working
+                    """
+                }
+                else if typeName == "String"
+                {
+                    return """
+                            self.field1 = \(typeName)(data: working)
+                    """
+                }
+                else
+                {
+                    return """
+                            guard let fieldValue = \(typeName)(data: working) else
+                            {
+                                return nil
+                            }
 
-                        self.field1 = fieldValue
-                        working = Data()
-                """
+                            self.field1 = fieldValue
+                    """
+                }
             }
         }
         else
@@ -785,7 +923,7 @@ public class SwiftCompiler
 
                     case .Builtin(name: _, representation: _):
                         return """
-                                    case .\(identifier.name)(let subtype):
+                                    case .\(identifier.name)Builtin(let subtype):
                                         let typeData = TypeIdentifiers.\(identifier.name)Type.varint
                                         let valueData = subtype.data
                                         return typeData + valueData
@@ -814,8 +952,10 @@ public class SwiftCompiler
 
                     case .List(name: _, type: _):
                         return """
-                                    case .\(identifier.name):
-                                        return self.data.pushLength()
+                                    case .\(identifier.name)(let subtype):
+                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
+                                        let valueData = subtype.data
+                                        return typeData + valueData
                         """
                 }
             }.joined(separator: "\n\n")
@@ -874,14 +1014,31 @@ public class SwiftCompiler
                         """
 
                     case .Builtin(name: _, representation: _):
-                        return """
-                                    case .\(identifier.name)Type:
-                                        guard let subtype = \(identifier.name)Value(data: working) else
-                                        {
-                                            return nil
-                                        }
-                                        self = .\(identifier.name)(subtype)
-                        """
+                        if identifier.name == "Data"
+                        {
+                            return """
+                                        case .\(identifier.name)Type:
+                                            self = .\(identifier.name)Builtin(working)
+                            """
+                        }
+                        else if identifier.name == "String"
+                        {
+                            return """
+                                        case .\(identifier.name)Type:
+                                            self = .\(identifier.name)Builtin(\(identifier.name)(data: working))
+                            """
+                        }
+                        else
+                        {
+                            return """
+                                        case .\(identifier.name)Type:
+                                            guard let subtype = \(identifier.name)(data: working) else
+                                            {
+                                                return nil
+                                            }
+                                            self = .\(identifier.name)Builtin(subtype)
+                            """
+                        }
 
                     case .Record(name: _, fields: _):
                         return """
@@ -903,9 +1060,12 @@ public class SwiftCompiler
                                         self = .\(identifier.name)(subtype)
                         """
 
-                    case .List(name: _, type: let listType):
+                    case .List(name: _, type: _):
+                        let typeName = try self.canonicalName(definition, namespace)
+
                         return """
-                                        guard let subtype = [\(listType)Value](data: working) else
+                                    case .\(identifier.name)Type:
+                                        guard let subtype = \(typeName)(data: working) else
                                         {
                                             return nil
                                         }
@@ -923,6 +1083,45 @@ public class SwiftCompiler
         """
     }
 
+    public func canonicalName(_ type: TypeDefinition, _ namespace: Namespace) throws -> Text
+    {
+        switch type
+        {
+            case .Builtin(name: let name, representation: _):
+                return "\(name)Builtin".text
+
+            case .Enum(name: let name, cases: _):
+                return "\(name)Value".text
+
+            case .SingletonType(name: let name):
+                return "\(name)".text
+
+            case .Record(name: let name, fields: _):
+                return "\(name)Value".text
+
+            case .List(name: _, type: let listType):
+                if listType == "Varint"
+                {
+                    return "[BInt]".text
+                }
+                else
+                {
+                    guard let subtype = namespace.bindings[listType] else
+                    {
+                        throw DaydreamCompilerError.doesNotExist(listType.string)
+                    }
+
+                    switch subtype
+                    {
+                        case .Builtin(name: _, representation: _):
+                            return "[\(listType)]".text
+
+                        default:
+                            return "[\(listType)Value]".text
+                    }
+                }
+        }
+    }
 }
 
 public enum SwiftCompilerError: Error
