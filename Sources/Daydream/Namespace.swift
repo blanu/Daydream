@@ -121,7 +121,17 @@ public class Namespace
         self.bind(name: name, definition: .Record(name: name, fields: fields))
     }
 
+    public func record(_ name: Text, _ fields: [Text])
+    {
+        self.bind(name: name, definition: .Record(name: name, fields: fields))
+    }
+
     public func `enum`(_ name: Text, _ cases: Text...)
+    {
+        self.bind(name: name, definition: .Enum(name: name, cases: cases))
+    }
+
+    public func `enum`(_ name: Text, _ cases: [Text])
     {
         self.bind(name: name, definition: .Enum(name: name, cases: cases))
     }
