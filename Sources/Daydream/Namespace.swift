@@ -88,6 +88,16 @@ public class Namespace
         self.bindings[name] = definition
     }
 
+    public func resolve(_ name: Text) throws -> TypeDefinition
+    {
+        guard let result = self.bindings[name] else
+        {
+            throw NamespaceError.undefinedType(name)
+        }
+
+        return result
+    }
+
     public func singleton(_ name: Text)
     {
         self.bind(name: name, definition: .SingletonType(name: name))
@@ -106,12 +116,12 @@ public class Namespace
         self.bind(name: name, definition: .Builtin(name: name, representation: representation))
     }
 
-    public func record(_ name: Text, _ fields: [Text])
+    public func record(_ name: Text, _ fields: Text...)
     {
         self.bind(name: name, definition: .Record(name: name, fields: fields))
     }
 
-    public func `enum`(_ name: Text, _ cases: [Text])
+    public func `enum`(_ name: Text, _ cases: Text...)
     {
         self.bind(name: name, definition: .Enum(name: name, cases: cases))
     }

@@ -1,8 +1,8 @@
 //
-//  SwiftCompiler.swift
-//  
+//  TypeIdentifiersGenerator.swift
 //
-//  Created by Dr. Brandon Wiley on 12/23/23.
+//
+//  Created by Dr. Brandon Wiley on 1/7/24.
 //
 
 import Foundation
@@ -12,31 +12,8 @@ import Text
 
 import Daydream
 
-public class SwiftCompiler
+extension SwiftCompiler
 {
-    func compile(_ builtins: [Identifier], _ identifiers: [Identifier], _ namespace: Namespace, _ outputDirectory: URL) throws
-    {
-        print("Builtins:")
-        for builtin in builtins
-        {
-            print(builtin)
-        }
-
-        print("====================")
-
-        print("Identifiers:")
-        for identifier in identifiers
-        {
-            print(identifier)
-        }
-
-        print("====================")
-
-        print("Saving to \(outputDirectory)")
-
-        try self.writeTypeIdentifiers(builtins, identifiers, namespace, outputDirectory)
-    }
-
     func writeTypeIdentifiers(_ builtins: [Identifier], _ identifiers: [Identifier], _ namespace: Namespace, _ outputDirectory: URL) throws
     {
         let outputPath = outputDirectory.appending(path: "TypeIdentifiers.swift")
@@ -214,7 +191,7 @@ public class SwiftCompiler
         \(self.generateTypeIdentifiersCases(builtins, identifiers))
         }
 
-        public enum Value: Equatable, Codable
+        public enum Value: Equatable, Codable, MaybeDatable
         {
         \(try self.generateTypeDefinitionCases(builtins, identifiers, namespace))
         }
@@ -331,7 +308,7 @@ public class SwiftCompiler
 
                 case .Record(name: let name, fields: let fields):
                     return """
-                    public struct \(name)Value: Equatable, Codable
+                    public struct \(name)Value: Equatable, Codable, MaybeDatable
                     {
                         // Public computed properties
                         public var data: Data
@@ -454,7 +431,7 @@ public class SwiftCompiler
 
                 case .Enum(name: let name, cases: let cases):
                     return try """
-                    public enum \(name)Value: Equatable, Codable
+                    public enum \(name)Value: Equatable, Codable, MaybeDatable
                     {
                         public var data: Data
                         {
@@ -1122,8 +1099,5 @@ public class SwiftCompiler
                 }
         }
     }
-}
 
-public enum SwiftCompilerError: Error
-{
 }

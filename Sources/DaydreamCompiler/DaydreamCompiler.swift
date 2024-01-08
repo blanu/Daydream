@@ -36,6 +36,7 @@ public class DaydreamCompiler
         }
 
         let inputURL = URL(fileURLWithPath: self.input)
+        let inputName = inputURL.deletingPathExtension().lastPathComponent
         let inputData = try Data(contentsOf: inputURL)
         let inputText = Text(fromUTF8Data: inputData)
 
@@ -66,7 +67,7 @@ public class DaydreamCompiler
         {
             case .swift:
                 let compiler = SwiftCompiler()
-                try compiler.compile(builtins, identifiers, namespace, outputURL)
+                try compiler.compile(inputName, builtins, identifiers, namespace, outputURL)
 
             case .go:
                 return
