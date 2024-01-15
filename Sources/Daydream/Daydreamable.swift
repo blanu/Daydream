@@ -7,8 +7,10 @@
 
 import Foundation
 
+import Transmission
+
 public protocol Daydreamable
 {
-    var daydream: Data { get }
-    init(daydream: Data) throws
+    init(connection: Transmission.Connection) throws
+    func saveDaydream(connection: Transmission.Connection) throws
 }

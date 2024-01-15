@@ -34,7 +34,7 @@ public class SwiftCompiler
 
         print("Saving to \(outputDirectory)")
 
-        try self.writeTypeIdentifiers(builtins, identifiers, namespace, outputDirectory)
+        try self.writeTypeIdentifiers(inputName.text, builtins, identifiers, namespace, outputDirectory)
         try self.writeMain(inputName, builtins, identifiers, namespace, outputDirectory)
         try self.writeService(inputName, builtins, identifiers, namespace, outputDirectory)
         try self.writeClient(inputName, builtins, identifiers, namespace, outputDirectory)
