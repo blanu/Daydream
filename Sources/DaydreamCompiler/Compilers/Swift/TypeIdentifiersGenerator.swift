@@ -33,22 +33,17 @@ extension SwiftCompiler
         import Daydream
         import SwiftHexTools
         import Text
+        import Transmission
 
         public enum TypeIdentifiers: Int
         {
-            public var varint: Data
+            public var bint: BInt
             {
-                let bint = BInt(self.rawValue)
-                return bint.varint
+                return BInt(self.rawValue)
             }
 
-            public init?(varint: Data)
+            public init?(bint: BInt)
             {
-                guard let bint = BInt(varint: varint) else
-                {
-                    return nil
-                }
-
                 guard let int = bint.asInt() else
                 {
                     return nil
@@ -58,6 +53,26 @@ extension SwiftCompiler
             }
 
         \(self.generateTypeIdentifiersCases(builtins, identifiers))
+        }
+
+        extension TypeIdentifiers: Daydreamable
+        {
+            public init(daydream connection: Transmission.Connection) throws
+            {
+                let bint = try BInt(daydream: connection)
+
+                guard let type = Self(bint: bint) else
+                {
+                    throw DaydreamError.conversionFailed
+                }
+
+                self = type
+            }
+
+            public func saveDaydream(_ connection: Transmission.Connection) throws
+            {
+                try self.bint.saveDaydream(connection)
+            }
         }
 
         public enum Value: Equatable, Codable
@@ -71,7 +86,9 @@ extension SwiftCompiler
 
         public enum DaydreamError: Error
         {
-            case conversionFailed(Data)
+            case conversionFailed
+            case readFailed
+            case writeFailed
         }
         """
 
@@ -185,9 +202,9 @@ extension SwiftCompiler
                     public struct \(name)Value: Equatable, Codable, Daydreamable
                     {
                         // Public computed properties
-                        public var daydream: Data
+                        public func saveDaydream(_ connection: Transmission.Connection) throws
                         {
-                            return \(self.structToData(name, fields))
+                            \(self.structToDaydream(name, fields))
                         }
 
                         // Public Fields
@@ -241,13 +258,9 @@ extension SwiftCompiler
                     )
 
                         // Public Inits
-                        public init(daydream data: Data) throws
+                        public init(daydream connection: Transmission.Connection) throws
                         {
-                            var working: Data = data
-
-                    \(try self.dataToStruct(name, fields, namespace))
-
-                            working = Data()
+                    \(try self.daydreamToStruct(name, fields, namespace))
                         }
 
                         public init(\(try fields.enumerated().map
@@ -307,7 +320,7 @@ extension SwiftCompiler
                     return try """
                     public enum \(name)Value: Equatable, Codable, Daydreamable
                     {
-                        public var daydream: Data
+                        public func saveDaydream(_ connection: Transmission.Connection) throws
                         {
                             switch self
                             {
@@ -325,31 +338,34 @@ extension SwiftCompiler
                             case .SingletonType(name: _):
                                 return """
                                             case .\(name):
-                                                return TypeIdentifiers.\(name)Type.varint
+                                                try TypeIdentifiers.\(name)Type.saveDaydream(connection)
                                 """
 
                             case .Builtin(name: _, representation: _):
                                 return """
                                             case .\(name):
-                                                return TypeIdentifiers.\(name)Type.varint
+                                                try TypeIdentifiers.\(name)Type.saveDaydream(connection)
                                 """
 
                             case .Record(name: _, fields: _):
                                 return """
                                             case .\(name)(let subtype):
-                                                return TypeIdentifiers.\(name)Type.varint + subtype.daydream
+                                                try TypeIdentifiers.\(name)Type.saveDaydream(connection)
+                                                try subtype.saveDaydream(connection)
                                 """
 
                             case .Enum(name: _, cases: _):
                                 return """
                                             case .\(name)(let subtype):
-                                                return TypeIdentifiers.\(name)Type.varint + subtype.daydream
+                                                try TypeIdentifiers.\(name)Type.saveDaydream(connection)
+                                                try subtype.saveDaydream(connection)
                                 """
 
                             case .List(name: _, type: _):
                                 return """
                                             case .\(name)(let subtype):
-                                                return TypeIdentifiers.\(name)Type.varint + subtype.daydream
+                                                try TypeIdentifiers.\(name)Type.saveDaydream(connection)
+                                                try subtype.saveDaydream(connection)
                                 """
                         }
                       }.joined(separator: "\n\n")
@@ -357,21 +373,18 @@ extension SwiftCompiler
                             }
                         }
 
-                        public init(daydream data: Data) throws
+                        public init(daydream connection: Transmission.Connection) throws
                         {
-                            guard let (bint, rest) = data.popVarint() else
-                            {
-                                throw DaydreamError.conversionFailed(data)
-                            }
+                            let bint = try BInt(daydream: connection)
 
                             guard let int = bint.asInt() else
                             {
-                                throw DaydreamError.conversionFailed(data)
+                                throw DaydreamError.conversionFailed
                             }
 
                             guard let type = TypeIdentifiers(rawValue: int) else
                             {
-                                throw DaydreamError.conversionFailed(data)
+                                throw DaydreamError.conversionFailed
                             }
 
                             switch type
@@ -390,29 +403,19 @@ extension SwiftCompiler
                             case .SingletonType(name: _):
                                 return """
                                             case .\(name)Type:
-                                                guard rest.isEmpty else
-                                                {
-                                                    throw DaydreamError.conversionFailed(data)
-                                                }
-
                                                 self = .\(name)
                                 """
 
                             case .Builtin(name: _, representation: _):
                                 return """
                                             case .\(name)Type:
-                                                guard rest.isEmpty else
-                                                {
-                                                    throw DaydreamError.conversionFailed(data)
-                                                }
-
                                                 self = .\(name)
                                 """
 
                             case .Record(name: _, fields: _):
                                 return """
                                             case .\(name)Type:
-                                                let value = try \(name)Value(daydream: rest)
+                                                let value = try \(name)Value(daydream: connection)
 
                                                 self = .\(name)(value)
                                                 return
@@ -421,7 +424,7 @@ extension SwiftCompiler
                             case .Enum(name: _, cases: _):
                                 return """
                                             case .\(name)Type:
-                                                let value = try \(name)Value(daydream: rest)
+                                                let value = try \(name)Value(daydream: connection)
 
                                                 self = .\(name)(value)
                                                 return
@@ -437,7 +440,7 @@ extension SwiftCompiler
                      )
 
                                 default:
-                                    throw DaydreamError.conversionFailed(data)
+                                    throw DaydreamError.conversionFailed
                             }
                         }
 
@@ -484,7 +487,7 @@ extension SwiftCompiler
         }.joined(separator: "\n\n")
     }
 
-    func structToData(_ name: Text, _ fields: [Text]) -> String
+    func structToDaydream(_ name: Text, _ fields: [Text]) -> String
     {
         if fields.count == 1
         {
@@ -492,19 +495,21 @@ extension SwiftCompiler
 
             if type == "Varint"
             {
-                return "self.field1.varint"
+                return "try self.field1.varint.saveDaydream(connection)"
             }
             else if type == "Data"
             {
-                return "self.field1"
+                return "try self.field1.saveDaydream(connection)"
             }
             else
             {
-                return "self.field1.daydream"
+                return "try self.field1.saveDaydream(connection)"
             }
         }
         else
         {
+
+
             return fields.enumerated().map
             {
                 index, type in
@@ -522,7 +527,7 @@ extension SwiftCompiler
         }
     }
 
-    func dataToStruct(_ name: Text, _ fields: [Text], _ namespace: Namespace) throws -> String
+    func daydreamToStruct(_ name: Text, _ fields: [Text], _ namespace: Namespace) throws -> String
     {
         if fields.count == 1
         {
@@ -568,11 +573,7 @@ extension SwiftCompiler
             if type == "Varint"
             {
                 return """
-                        guard let fieldValue = BInt(varint: working) else
-                        {
-                            throw DaydreamError.conversionFailed(data)
-                        }
-
+                        let fieldValue = try BInt(daydream: connection)
                         self.field1 = fieldValue
                 """
             }
@@ -581,21 +582,19 @@ extension SwiftCompiler
                 if typeName == "Data"
                 {
                     return """
-                            self.field1 = working
+                            self.field1 = try Data(daydream: connection)
                     """
                 }
                 else if typeName == "String"
                 {
                     return """
-                            self.field1 = try \(typeName)(daydream: working)
+                            self.field1 = try \(typeName)(daydream: connection)
                     """
                 }
                 else
                 {
                     return """
-                            let fieldValue = try \(typeName)(daydream: working)
-
-                            self.field1 = fieldValue
+                            self.field1 = try \(typeName)(daydream: connection)
                     """
                 }
             }
@@ -617,18 +616,7 @@ extension SwiftCompiler
                     canonicalTypeName = "BInt"
 
                     return """
-                                            guard let (payload\(index+1), rest\(index+1)) = working.popLengthAndSlice() else
-                                            {
-                                                throw DaydreamError.conversionFailed(data)
-                                            }
-
-                                            guard let fieldValue\(index+1) = BInt(varint: payload\(index+1)) else
-                                            {
-                                                throw DaydreamError.conversionFailed(data)
-                                            }
-
-                                            self.field\(index+1) = fieldValue\(index+1)
-                                            working = rest\(index+1)
+                                            self.field\(index+1) = try BInt(daydream: connection)
                                     """
                 }
                 else
@@ -643,18 +631,7 @@ extension SwiftCompiler
                     }
 
                     return """
-                                            guard let (payload\(index+1), rest\(index+1)) = working.popLengthAndSlice() else
-                                            {
-                                                throw DaydreamError.conversionFailed(data)
-                                            }
-
-                                            guard let fieldValue\(index+1) = \(canonicalTypeName)(data: payload\(index+1)) else
-                                            {
-                                                throw DaydreamError.conversionFailed(data)
-                                            }
-
-                                            self.field\(index+1) = fieldValue\(index+1)
-                                            working = rest\(index+1)
+                                            self.field\(index+1) = try \(canonicalTypeName)(daydream: connection)
                                     """
                 }
             }.joined(separator: "\n\n")
@@ -666,7 +643,7 @@ extension SwiftCompiler
         return """
         extension Value: Daydreamable
         {
-            public var daydream: Data
+            public func saveDaydream(_ connection: Transmission.Connection) throws
             {
                 switch self
                 {
@@ -679,9 +656,8 @@ extension SwiftCompiler
                 {
                     return """
                                 case .Varint(let bignum):
-                                    let typeData = TypeIdentifiers.VarintType.varint
-                                    let valueData = bignum.varint
-                                    return typeData + valueData
+                                    try TypeIdentifiers.VarintType.saveDaydream(connection)
+                                    try bignum.saveDaydream(connection)
                     """
                 }
 
@@ -695,45 +671,36 @@ extension SwiftCompiler
                     case .SingletonType(name: _):
                         return """
                                     case .\(identifier.name):
-                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
-                                        return typeData
+                                        try TypeIdentifiers.\(identifier.name)Type.saveDaydream(connection)
                         """
 
                     case .Builtin(name: _, representation: _):
                         return """
                                     case .\(identifier.name)Builtin(let subtype):
-                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
-                                        let valueData = subtype.daydream
-                                        return typeData + valueData
+                                        try TypeIdentifiers.\(identifier.name)Type.saveDaydream(connection)
+                                        try subtype.saveDaydream(connection)
                         """
 
 
                     case .Record(name: _, fields: _):
                         return """
                                     case .\(identifier.name)(let subtype):
-                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
-                                        let valueData = subtype.daydream
-                                        print("typeData: \\(typeData.hex)")
-                                        print("valueData: \\(valueData.hex)")
-                                        return typeData + valueData
+                                        try TypeIdentifiers.\(identifier.name)Type.saveDaydream(connection)
+                                        try subtype.saveDaydream(connection)
                         """
 
                     case .Enum(name: _, cases: _):
                         return """
                                     case .\(identifier.name)(let subtype):
-                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
-                                        let valueData = subtype.daydream
-                                        print("typeData: \\(typeData.hex)")
-                                        print("valueData: \\(valueData.hex)")
-                                        return typeData + valueData
+                                        try TypeIdentifiers.\(identifier.name)Type.saveDaydream(connection)
+                                        try subtype.saveDaydream(connection)
                         """
 
                     case .List(name: _, type: _):
                         return """
                                     case .\(identifier.name)(let subtype):
-                                        let typeData = TypeIdentifiers.\(identifier.name)Type.varint
-                                        let valueData = subtype.daydream
-                                        return typeData + valueData
+                                        try TypeIdentifiers.\(identifier.name)Type.saveDaydream(connection)
+                                        try subtype.saveDaydream(connection)
                         """
                 }
             }.joined(separator: "\n\n")
@@ -743,44 +710,7 @@ extension SwiftCompiler
 
             public init(daydream connection: Transmission.Connection) throws
             {
-                guard let prefix = connection.read(size: 1) else
-                {
-                    throw ConnectionError.readFailed
-                }
-
-                let varintCount = Int(prefix[0])
-
-                guard let compressedBuffer = connection.read(size: varintCount) else
-                {
-                    throw ConnectionError.readFailed
-                }
-
-                let uncompressedBuffer = try unpackVarintData(buffer: compressedBuffer)
-
-                guard let payloadCount = uncompressedBuffer.maybeNetworkUint64 else
-                {
-                    throw ConnectionError.conversionFailed
-                }
-
-                guard let payload = connection.read(size: Int(payloadCount)) else
-                {
-                    throw ConnectionError.readFailed
-                }
-
-                guard let (bint, working) = data.popVarint() else
-                {
-                    throw DaydreamError.conversionFailed(data)
-                }
-
-                guard let int = bint.asInt() else
-                {
-                    throw DaydreamError.conversionFailed(data)
-                }
-
-                guard let type = TypeIdentifiers(rawValue: int) else
-                {
-                    throw DaydreamError.conversionFailed(data)
-                }
+                let type = try TypeIdentifiers(daydream: connection)
 
                 switch type
                 {
@@ -793,11 +723,7 @@ extension SwiftCompiler
                 {
                     return """
                                 case .VarintType:
-                                    guard let bignum = BInt(varint: working) else
-                                    {
-                                        throw DaydreamError.conversionFailed(data)
-                                    }
-
+                                    let bignum = try BInt(daydream: connection)
                                     self = .Varint(bignum)
                     """
                 }
@@ -820,21 +746,22 @@ extension SwiftCompiler
                         {
                             return """
                                         case .\(identifier.name)Type:
-                                            self = .\(identifier.name)Builtin(working)
+                                            let subtype = try Data(daydream: connection)
+                                            self = .\(identifier.name)Builtin(subtype)
                             """
                         }
                         else if identifier.name == "String"
                         {
                             return """
                                         case .\(identifier.name)Type:
-                                            self = .\(identifier.name)Builtin(try \(identifier.name)(daydream: working))
+                                            self = .\(identifier.name)Builtin(try \(identifier.name)(daydream: connection))
                             """
                         }
                         else
                         {
                             return """
                                         case .\(identifier.name)Type:
-                                            let subtype = try \(identifier.name)(daydream: working)
+                                            let subtype = try \(identifier.name)(daydream: connection)
                                             self = .\(identifier.name)Builtin(subtype)
                             """
                         }
@@ -842,14 +769,14 @@ extension SwiftCompiler
                     case .Record(name: _, fields: _):
                         return """
                                     case .\(identifier.name)Type:
-                                        let subtype = try \(identifier.name)Value(daydream: working)
+                                        let subtype = try \(identifier.name)Value(daydream: connection)
                                         self = .\(identifier.name)(subtype)
                         """
 
                     case .Enum(name: _, cases: _):
                         return """
                                     case .\(identifier.name)Type:
-                                        let subtype = try \(identifier.name)Value(daydream: working)
+                                        let subtype = try \(identifier.name)Value(daydream: connection)
                                         self = .\(identifier.name)(subtype)
                         """
 
@@ -858,7 +785,7 @@ extension SwiftCompiler
 
                         return """
                                     case .\(identifier.name)Type:
-                                        let subtype = try \(typeName)(daydream: working)
+                                        let subtype = try \(typeName)(daydream: connection)
                                         self = .\(identifier.name)(subtype)
                         """
                 }
@@ -866,7 +793,7 @@ extension SwiftCompiler
         )
 
                     default:
-                        throw DaydreamError.conversionFailed(data)
+                        throw DaydreamError.conversionFailed
                 }
             }
         }
