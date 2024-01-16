@@ -11,7 +11,7 @@ import Transmission
 
 extension Transmission.Connection
 {
-    func write(_ data: Data, compression: Bool = false) throws
+    func write(_ data: Data, compression: Bool = false, metacount: Bool = false) throws
     {
         var payload = data
         if compression
@@ -19,39 +19,49 @@ extension Transmission.Connection
             payload = self.compress(payload)
         }
 
-        try self.writeCount( payload)
+        try self.writeCount(payload, metacount: metacount)
 
         guard self.write(data: payload) else
         {
-            throw ArrayError.writeFailed
+            throw ConnectionDaydreamError.writeFailed
         }
     }
 
-    func writeCount(_ data: Data) throws
+    func writeCount(_ data: Data, metacount: Bool = false) throws
     {
         let count = data.count
         let countUInt64 = UInt64(count)
         let countUncompressed = countUInt64.maybeNetworkData!
         let countCompressed = self.compress(countUncompressed)
 
-        let metacount = countCompressed.count
-        let metacountUInt8 = UInt8(metacount)
-        let metacountData = metacountUInt8.maybeNetworkData!
-
-        guard self.write(data: metacountData) else
+        if metacount
         {
-            throw ArrayError.writeFailed
+            let metacountInt = countCompressed.count
+            let metacountUInt8 = UInt8(metacountInt)
+            let metacountData = metacountUInt8.maybeNetworkData!
+
+            guard self.write(data: metacountData) else
+            {
+                throw ConnectionDaydreamError.writeFailed
+            }
+        }
+        else
+        {
+            guard countCompressed.count == 1 else
+            {
+                throw ConnectionDaydreamError.countTooBig
+            }
         }
 
         guard self.write(data: countCompressed) else
         {
-            throw ArrayError.writeFailed
+            throw ConnectionDaydreamError.writeFailed
         }
     }
 
-    func read(compression: Bool = false) throws -> Data
+    func read(compression: Bool = false, metacount: Bool = false) throws -> Data
     {
-        let count = try self.readCount()
+        let count = try self.readCount(metacount: metacount)
 
         guard count > 0 else
         {
@@ -60,7 +70,7 @@ extension Transmission.Connection
 
         guard var payload = self.read(size: count) else
         {
-            throw ArrayError.readFailed
+            throw ConnectionDaydreamError.readFailed
         }
 
         if compression
@@ -71,33 +81,44 @@ extension Transmission.Connection
         return payload
     }
 
-    func readCount() throws -> Int
+    func readCount(metacount: Bool = false) throws -> Int
     {
-        guard let compressedCountDataPrefix = self.read(size: 1) else
+        if metacount
         {
-            throw ArrayError.readFailed
+            guard let compressedCountDataPrefix = self.read(size: 1) else
+            {
+                throw ConnectionDaydreamError.readFailed
+            }
+
+            let countPrefix = Int(compressedCountDataPrefix[0])
+
+            guard countPrefix > 0 else
+            {
+                return 0
+            }
+
+            guard let compressedCountData = self.read(size: countPrefix) else
+            {
+                throw ConnectionDaydreamError.readFailed
+            }
+
+            let uncompressedCountData = uncompress(compressedCountData)
+            guard let uint64 = UInt64(maybeNetworkData: uncompressedCountData) else
+            {
+                throw ConnectionDaydreamError.conversionFailed
+            }
+
+            return Int(uint64)
         }
-
-        let countPrefix = Int(compressedCountDataPrefix[0])
-
-        guard countPrefix > 0 else
+        else
         {
-            return 0
-        }
+            guard let countData = self.read(size: 1) else
+            {
+                throw ConnectionDaydreamError.readFailed
+            }
 
-        guard let compressedCountData = self.read(size: countPrefix) else
-        {
-            throw ArrayError.readFailed
+            return Int(countData[0])
         }
-
-        let uncompressedCountData = uncompress(compressedCountData)
-        guard let uint64 = UInt64(maybeNetworkData: uncompressedCountData) else
-        {
-            throw ArrayError.conversionFailed
-        }
-        let count = Int(uint64)
-
-        return count
     }
 
     func compress(_ uncompressed: Data) -> Data
@@ -136,4 +157,12 @@ extension Transmission.Connection
         let filler = Data(repeating: 0, count: gapSize)
         return filler + compressed
     }
+}
+
+public enum ConnectionDaydreamError: Error
+{
+    case countTooBig
+    case readFailed
+    case writeFailed
+    case conversionFailed
 }

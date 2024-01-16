@@ -179,7 +179,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }                          
+                                        }
                                         """
                                     }
 
@@ -198,7 +199,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }                 
+                                        }
                                     """
                             }
 
@@ -220,7 +222,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }                         
+                                        }
                                     """
 
                                 case .Enum(name: _, cases: let cases):
@@ -243,7 +246,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }          
+                                        }
                                         """
                                     }
                                     else if cases.contains("Error")
@@ -265,7 +269,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }                              
+                                        }
                                         """
                                     }
                                     else
@@ -284,7 +289,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }                              
+                                        }
                                         """
                                     }
 
@@ -303,7 +309,8 @@ extension SwiftCompiler
 
                                                 default:
                                                     throw \(inputName)ClientError.wrongReturnType
-                                            }                                        }
+                                            }                                
+                                        }
                                     """
                             }
                     }

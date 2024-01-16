@@ -42,7 +42,8 @@ extension BInt: Daydreamable
             limbs.append(uint64)
         }
 
-        self.init(limbs: limbs)
+        let bint = BInt(limbs: limbs)
+        self = bint
     }
 
     public func saveDaydream(_ connection: TransmissionTypes.Connection) throws

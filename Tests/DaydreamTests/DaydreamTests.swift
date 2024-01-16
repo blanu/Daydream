@@ -89,4 +89,38 @@ final class DaydreamTests: XCTestCase
 
         XCTAssertEqual(bint, maxintplus)
     }
+
+    public func testStringEmpty() throws
+    {
+        let string: String = ""
+
+        let buffer = TransmissionData()
+
+        try string.saveDaydream(buffer)
+
+        buffer.flip()
+
+        print(buffer.description)
+
+        let string2 = try String(daydream: buffer)
+
+        XCTAssertEqual(string2, string)
+    }
+
+    public func testStringHello() throws
+    {
+        let string: String = "hello"
+
+        let buffer = TransmissionData()
+
+        try string.saveDaydream(buffer)
+
+        buffer.flip()
+
+        print(buffer.description)
+
+        let string2 = try String(daydream: buffer)
+
+        XCTAssertEqual(string2, string)
+    }
 }
