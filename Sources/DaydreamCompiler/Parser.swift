@@ -8,6 +8,7 @@
 import Foundation
 
 import Text
+import TextOperators
 
 import Daydream
 

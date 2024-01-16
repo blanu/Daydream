@@ -11,6 +11,6 @@ import Transmission
 
 public protocol Daydreamable
 {
-    init(connection: Transmission.Connection) throws
-    func saveDaydream(connection: Transmission.Connection) throws
+    init(daydream: Transmission.Connection) throws
+    func saveDaydream(_ connection: Transmission.Connection) throws
 }

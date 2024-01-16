@@ -34,287 +34,6 @@ extension SwiftCompiler
         import SwiftHexTools
         import Text
 
-        extension Text: Daydreamable
-        {
-            public typealias Typespace = TypeIdentifiers
-
-            public var daydream: Data
-            {
-                let scalars = [Unicode.Scalar](self.string.unicodeScalars)
-                let bints = scalars.compactMap { BInt(Int($0.value)) }
-                return bints.daydream
-            }
-
-            public var type: Typespace
-            {
-                return TypeIdentifiers.TextType
-            }
-
-            public init(daydream data: Data) throws
-            {
-                let bints = try [BInt](daydream: data)
-                let scalars = bints.compactMap { Unicode.Scalar(UInt32($0)) }
-                var string = ""
-                string.unicodeScalars.append(contentsOf: scalars)
-
-                self = string.text
-            }
-        }
-
-        extension String: Daydreamable
-        {
-            public typealias Typespace = TypeIdentifiers
-
-            public var daydream: Data
-            {
-                let scalars = [Unicode.Scalar](self.unicodeScalars)
-                let bints = scalars.compactMap { BInt(Int($0.value)) }
-                return bints.daydream
-            }
-
-            public var type: Typespace
-            {
-                return TypeIdentifiers.StringType
-            }
-
-            public init(daydream data: Data) throws
-            {
-                let bints = try [BInt](daydream: data)
-                let scalars = bints.compactMap { Unicode.Scalar(UInt32($0)) }
-                var string = ""
-                string.unicodeScalars.append(contentsOf: scalars)
-
-                self = string
-            }
-        }
-
-        extension Int: Daydreamable
-        {
-            public typealias Typespace = TypeIdentifiers
-
-            public var daydream: Data
-            {
-                let bint = BInt(self)
-                return bint.daydream
-            }
-
-            public var type: Typespace
-            {
-                return TypeIdentifiers.IntType
-            }
-
-            public init(daydream data: Data) throws
-            {
-                let bint = try BInt(daydream: data)
-                guard let int = bint.asInt() else
-                {
-                    throw DaydreamError.conversionFailed(data)
-                }
-
-                self = int
-            }
-        }
-
-        extension Data: Daydreamable
-        {
-            public typealias Typespace = TypeIdentifiers
-
-            public var daydream: Data
-            {
-                return self
-            }
-
-            public var type: Typespace
-            {
-                return TypeIdentifiers.DataType
-            }
-
-            public init(daydream data: Data) throws
-            {
-                self = data
-            }
-        }
-
-        extension Bool: Daydreamable
-        {
-            public typealias Typespace = TypeIdentifiers
-
-            public var daydream: Data
-            {
-                if self
-                {
-                    return UInt8(0).data
-                }
-                else
-                {
-                    return UInt8(1).data
-                }
-            }
-
-            public var type: Typespace
-            {
-                return TypeIdentifiers.BoolType
-            }
-
-            public init(daydream data: Data) throws
-            {
-                guard data.count == 1 else
-                {
-                    throw DaydreamError.conversionFailed(data)
-                }
-
-                if data.count == 0
-                {
-                    self = false
-                }
-                else if data.count == 1
-                {
-                    self = true
-                }
-                else
-                {
-                    throw DaydreamError.conversionFailed(data)
-                }
-            }
-        }
-
-        extension Data
-        {
-            public func popVarint() -> (BInt, Data)?
-            {
-                var working: Data = data
-
-                guard working.count > 0 else
-                {
-                    return nil
-                }
-
-                guard let firstByte = working.first else
-                {
-                    return nil
-                }
-                working = working.dropFirst()
-
-                let count = Int(firstByte)
-
-                guard working.count >= count else
-                {
-                    return nil
-                }
-
-                let next: Data
-                if count == 1
-                {
-                    guard let first = working.first else
-                    {
-                        return nil
-                    }
-
-                    next = Data(array: [first])
-
-                    working = working.dropFirst()
-                }
-                else
-                {
-                    next = Data(working[0..<count])
-                    working = Data(working[count...])
-                }
-
-                let varintBytes = Data(array: [firstByte] + next)
-                guard let bint = BInt(varint: varintBytes) else
-                {
-                    return nil
-                }
-
-                return (bint, working)
-            }
-
-            public func popLength() -> (Int, Data)?
-            {
-                guard let (bint, rest) = self.popVarint() else
-                {
-                    return nil
-                }
-
-                guard let int = bint.asInt() else
-                {
-                    return nil
-                }
-
-                return (int, rest)
-            }
-
-            public func popLengthAndSlice() -> (Data, Data)?
-            {
-                guard let (length, rest) = self.popLength() else
-                {
-                    return nil
-                }
-
-                guard length <= rest.count else
-                {
-                    return nil
-                }
-
-                let head = Data(rest[0..<length])
-                let tail = Data(rest[length...])
-
-                return (head, tail)
-            }
-
-            public func pushVarint(bint: BInt) -> Data
-            {
-                return bint.varint + self
-            }
-
-            public func pushLength() -> Data
-            {
-                let bint = BInt(self.count)
-                return self.pushVarint(bint: bint)
-            }
-        }
-
-        extension Array: Daydreamable where Self.Element: Daydreamable
-        {
-            public var daydream: Data
-            {
-                var result: Data = Data()
-                result.append(BInt(self.count).varint)
-
-                for item in self
-                {
-                    let itemData = item.daydream
-                    let itemDataCount = BInt(itemData.count)
-
-                    result.append(itemDataCount.varint)
-                    result.append(itemData)
-                }
-
-                return result
-            }
-
-            public init(daydream data: Data) throws
-            {
-                var results: Self = []
-                var working = data
-
-                while working.count > 0
-                {
-                    guard let (valueData, rest) = working.popLengthAndSlice() else
-                    {
-                        self = results
-                        return
-                    }
-
-                    let value = try Self.Element(daydream: valueData)
-                    results.append(value)
-                    working = rest
-                }
-
-                self = results
-            }
-        }
-
         public enum TypeIdentifiers: Int
         {
             public var varint: Data
@@ -1022,8 +741,32 @@ extension SwiftCompiler
                 }
             }
 
-            public init(daydream data: Data) throws
+            public init(daydream connection: Transmission.Connection) throws
             {
+                guard let prefix = connection.read(size: 1) else
+                {
+                    throw ConnectionError.readFailed
+                }
+
+                let varintCount = Int(prefix[0])
+
+                guard let compressedBuffer = connection.read(size: varintCount) else
+                {
+                    throw ConnectionError.readFailed
+                }
+
+                let uncompressedBuffer = try unpackVarintData(buffer: compressedBuffer)
+
+                guard let payloadCount = uncompressedBuffer.maybeNetworkUint64 else
+                {
+                    throw ConnectionError.conversionFailed
+                }
+
+                guard let payload = connection.read(size: Int(payloadCount)) else
+                {
+                    throw ConnectionError.readFailed
+                }
+
                 guard let (bint, working) = data.popVarint() else
                 {
                     throw DaydreamError.conversionFailed(data)
