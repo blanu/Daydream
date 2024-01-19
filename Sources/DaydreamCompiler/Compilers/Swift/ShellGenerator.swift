@@ -494,9 +494,11 @@ extension SwiftCompiler
                                                 // f(T)
                                                 else if command == "\(functionName)".text
                                                 {
+                                    \(try self.parseArgument(inputName, enumCase, namespace))
+
                                                     do
                                                     {
-                                                        try self.client.\(functionName)()
+                                                        try self.client.\(functionName)(\(try self.argumentList(inputName, enumCase, namespace)))
                                                     }
                                                     catch
                                                     {
@@ -505,14 +507,58 @@ extension SwiftCompiler
                                                 }
                                     """
 
-                                default:
-                                    return """
-                                                // f(S) -> T
+                                case .Enum(name: _, cases: let cases):
+                                    if cases == ["Nothing", "Error"]
+                                    {
+                                        return """
+                                                // f(S) throws
                                                 else if command == "\(functionName)".text
                                                 {
+                                        \(try self.parseArgument(inputName, enumCase, namespace))
+
                                                     do
                                                     {
-                                                        try self.client.\(functionName)()
+                                                        try self.client.\(functionName)(\(try self.argumentList(inputName, enumCase, namespace)))
+                                                    }
+                                                    catch
+                                                    {
+                                                        print("Error: \\(error.localizedDescription).")
+                                                    }
+                                                }
+                                        """
+                                    }
+                                    else
+                                    {
+                                        return """
+                                                // f(S) -> T 1
+                                                else if command == "\(functionName)".text
+                                                {
+                                        \(try self.parseArgument(inputName, enumCase, namespace))
+
+                                                    do
+                                                    {
+                                                        let result = try self.client.\(functionName)(\(try self.argumentList(inputName, enumCase, namespace)))
+                                                        print(result)
+                                                    }
+                                                    catch
+                                                    {
+                                                        print("Error: \\(error.localizedDescription).")
+                                                    }
+                                                }
+                                        """
+                                    }
+
+                                default:
+                                    return """
+                                                // f(S) -> T 2
+                                                else if command == "\(functionName)".text
+                                                {
+                                    \(try self.parseArgument(inputName, enumCase, namespace))
+
+                                                    do
+                                                    {
+                                                        let result = try self.client.\(functionName)(\(try self.argumentList(inputName, enumCase, namespace)))
+                                                        print(result)
                                                     }
                                                     catch
                                                     {
@@ -530,6 +576,230 @@ extension SwiftCompiler
                 throw ShellGeneratorError.wrongType
         }
     }
+
+    func parseArgument(_ inputName: Text, _ argumentsTypeName: Text, _ namespace: Namespace) throws -> Text
+    {
+        let argumentsType = try namespace.resolve(argumentsTypeName)
+
+        switch argumentsType
+        {
+            case .Builtin(name: _, representation: _):
+                return """
+                        let text0 = arguments[0]
+
+                        let argument0 = \(argumentsTypeName)(text0)
+                """.text
+
+            case .Enum(name: _, cases: _):
+                return """
+                        let text0 = arguments[0]
+
+                        let argument0 = \(argumentsTypeName)(text0)
+                """.text
+
+            case .List(name: _, type: _):
+                return """
+                        let text0 = arguments[0]
+
+                        let argument0 = \(argumentsTypeName)(text0)
+                """.text
+
+            case .Record(name: _, fields: let fields):
+                if fields.count == 1
+                {
+                    let field0 = fields[0]
+
+                    let fieldType = try namespace.resolve(field0)
+
+                    switch fieldType
+                    {
+                        case .Builtin(name: _, representation: _):
+                            if field0 == "Text"
+                            {
+                                return """
+                                                let text0 = arguments[0]
+
+                                                let argument0: \(field0) = text0
+                                """.text
+                            }
+                            else if field0 == "String"
+                            {
+                                return """
+                                                let text0 = arguments[0]
+
+                                                let argument0: \(field0) = text0.string
+                                """.text
+                            }
+                            else
+                            {
+                                return """
+                                                let text0 = arguments[0]
+
+                                                let argument0: \(field0) = \(field0)(string: text0.string)
+                                """.text
+                            }
+
+                        case .Record(name: _, fields: let fields):
+                            return fields.enumerated().map
+                            {
+                                index, element in
+
+                                if element == "Text"
+                                {
+                                    return """
+                                                let argument\(index) = arguments[\(index)]
+                                    """
+                                }
+                                else
+                                {
+                                    return """
+                                                let text\(index) = arguments[\(index)]
+                                                let argument\(index): \(element) = \(element)(string: text\(index).string)
+                                    """
+                                }
+                            }.joined(separator: "\n").text
+
+                        case .List(name: _, type: let listType):
+                            if listType == "Text"
+                            {
+                                return """
+                                                let parameters = arguments
+                                """.text
+                            }
+                            else
+                            {
+                                return """
+                                                let parameters = arguments.map { \(fieldType)(string: $0) }
+                                """.text
+                            }
+
+                        case .Enum(name: _, cases: let cases):
+                            if cases.contains("Nothing")
+                            {
+                                let case0 = cases[0]
+
+                                return """
+                                                let argument0: \(case0)?
+                                                if arguments.count == 0
+                                                {
+                                                    argument0 = nil
+                                                }
+                                                else
+                                                {
+                                                    argument0 = arguments[0]
+                                                }
+                                """.text
+                            }
+                            else
+                            {
+                                return """
+                                            let text0 = arguments[0]
+
+                                            let argument0 = \(field0)(text0)
+                                """.text
+                            }
+
+                        default:
+                            return """
+                                            let text0 = arguments[0]
+
+                                            let argument0 = \(field0)(text0)
+                            """.text
+                    }
+                }
+                else
+                {
+                    return """
+                        let text0 = arguments[0]
+
+                        let argument0 = \(argumentsTypeName)(text0)
+                    """.text
+                }
+
+            case .SingletonType(name: _):
+                return """
+                        let text0 = arguments[0]
+
+                        let argument0 = \(argumentsTypeName)(text0)
+                """.text
+        }
+    }
+
+    func argumentList(_ inputName: Text, _ argumentsTypeName: Text, _ namespace: Namespace) throws -> Text
+    {
+        let argumentsType = try namespace.resolve(argumentsTypeName)
+
+        switch argumentsType
+        {
+            case .Builtin(name: _, representation: _):
+                return "argument0"
+
+            case .Enum(name: _, cases: _):
+                return "argument0"
+
+            case .List(name: _, type: _):
+                return "argument0"
+
+            case .Record(name: _, fields: let fields):
+                if fields.count == 1
+                {
+                    let field0 = fields[0]
+
+                    let fieldType = try namespace.resolve(field0)
+
+                    switch fieldType
+                    {
+                        case .Builtin(name: _, representation: _):
+                            return "argument0"
+
+                        case .Record(name: _, fields: let fields):
+                            return fields.enumerated().map
+                            {
+                                index, element in
+
+                                return "argument\(index)"
+                            }.joined(separator: ", ").text
+
+                        case .List(name: _, type: let listType):
+                            return "parameters"
+
+                        case .Enum(name: _, cases: let cases):
+                            if cases.contains("Nothing")
+                            {
+                                return "argument0"
+                            }
+                            else
+                            {
+                                return fields.enumerated().map
+                                {
+                                    index, element in
+
+                                    return "argument\(index)"
+                                }.joined(separator: ", ").text
+                            }
+
+                        default:
+                            return fields.enumerated().map
+                            {
+                                index, element in
+
+                                return "argument\(index)"
+                            }.joined(separator: ", ").text                    }
+                }
+                else
+                {
+                    return fields.enumerated().map
+                    {
+                        index, element in
+
+                        return "argument\(index)"
+                    }.joined(separator: ", ").text                }
+
+            case .SingletonType(name: _):
+                return "argument0"
+        }
+    }
+
 }
 
 public enum ShellGeneratorError: Error

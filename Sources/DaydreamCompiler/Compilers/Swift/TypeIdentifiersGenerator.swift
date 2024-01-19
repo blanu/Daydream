@@ -204,7 +204,7 @@ extension SwiftCompiler
                         // Public computed properties
                         public func saveDaydream(_ connection: Transmission.Connection) throws
                         {
-                            \(self.structToDaydream(name, fields))
+                    \(self.structToDaydream(name, fields))
                         }
 
                         // Public Fields
@@ -343,8 +343,9 @@ extension SwiftCompiler
 
                             case .Builtin(name: _, representation: _):
                                 return """
-                                            case .\(name):
+                                            case .\(name)Value(let subtype):
                                                 try TypeIdentifiers.\(name)Type.saveDaydream(connection)
+                                                try subtype.saveDaydream(connection)
                                 """
 
                             case .Record(name: _, fields: _):
@@ -409,7 +410,8 @@ extension SwiftCompiler
                             case .Builtin(name: _, representation: _):
                                 return """
                                             case .\(name)Type:
-                                                self = .\(name)
+                                                let value = try \(name)(daydream: connection)
+                                                self = .\(name)Value(value)
                                 """
 
                             case .Record(name: _, fields: _):
@@ -459,7 +461,7 @@ extension SwiftCompiler
                                 return "    case \(type)"
 
                             case .Builtin(name: _, representation: _):
-                                return "    case \(type)"
+                                return "    case \(type)Value(\(type))"
 
                             case .Record(name: _, fields: _):
                                 return "    case \(type)(\(type)Value)"
@@ -495,35 +497,43 @@ extension SwiftCompiler
 
             if type == "Varint"
             {
-                return "try self.field1.varint.saveDaydream(connection)"
+                return """
+                    try self.field1.varint.saveDaydream(connection)
+                """
             }
             else if type == "Data"
             {
-                return "try self.field1.saveDaydream(connection)"
+                return """
+                    try self.field1.saveDaydream(connection)
+                """
             }
             else
             {
-                return "try self.field1.saveDaydream(connection)"
+                return """
+                    try self.field1.saveDaydream(connection)
+                """
             }
         }
         else
         {
-
-
             return fields.enumerated().map
             {
                 index, type in
 
                 if type == "Varint"
                 {
-                    return "self.field\(index+1).varint.pushLength()"
+                    return """
+                            try self.field\(index+1).saveDaydream(connection)
+                    """
                 }
                 else
                 {
-                    return "self.field\(index+1).daydream.pushLength()"
+                    return """
+                            try self.field\(index+1).saveDaydream(connection)
+                    """
                 }
             }
-            .joined(separator: " + ")
+            .joined(separator: "\n")
         }
     }
 
@@ -616,8 +626,8 @@ extension SwiftCompiler
                     canonicalTypeName = "BInt"
 
                     return """
-                                            self.field\(index+1) = try BInt(daydream: connection)
-                                    """
+                            self.field\(index+1) = try BInt(daydream: connection)
+                    """
                 }
                 else
                 {
@@ -626,15 +636,18 @@ extension SwiftCompiler
                         case .List(name: _, type: let listType):
                             canonicalTypeName = Text(fromUTF8String: "[\(listType)Value]")
 
+                        case .Builtin(name: _, representation: _):
+                            canonicalTypeName = "\(type)".text
+
                         default:
                             canonicalTypeName = Text(fromUTF8String: "\(type)Value")
                     }
 
                     return """
-                                            self.field\(index+1) = try \(canonicalTypeName)(daydream: connection)
-                                    """
+                            self.field\(index+1) = try \(canonicalTypeName)(daydream: connection)
+                    """
                 }
-            }.joined(separator: "\n\n")
+            }.joined(separator: "\n")
         }
     }
 
